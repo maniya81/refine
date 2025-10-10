@@ -1,41 +1,34 @@
-import { useList } from "@refinedev/core";
-import type { GetFieldsFromList } from "@refinedev/nestjs-query";
+import { useState, useEffect } from "react";
 
 import { CalendarOutlined } from "@ant-design/icons";
 import { Badge, Card, List, Skeleton as AntdSkeleton } from "antd";
 import dayjs from "dayjs";
 
 import { Text } from "@/components";
-import type { DashboardCalendarUpcomingEventsQuery } from "@/graphql/types";
+import { mockUpcomingEvents } from "@/providers/data/dashboard-mock-data";
 
-import { DASHBOARD_CALENDAR_UPCOMING_EVENTS_QUERY } from "./queries";
+type EventItem = {
+  id: string;
+  title: string;
+  color: string;
+  startDate: string;
+  endDate: string;
+};
 
 export const CalendarUpcomingEvents = () => {
-  const {
-    result: data,
-    query: { isLoading },
-  } = useList<GetFieldsFromList<DashboardCalendarUpcomingEventsQuery>>({
-    resource: "events",
-    pagination: {
-      pageSize: 5,
-    },
-    sorters: [
-      {
-        field: "startDate",
-        order: "asc",
-      },
-    ],
-    filters: [
-      {
-        field: "startDate",
-        operator: "gte",
-        value: dayjs().format("YYYY-MM-DD"),
-      },
-    ],
-    meta: {
-      gqlQuery: DASHBOARD_CALENDAR_UPCOMING_EVENTS_QUERY,
-    },
-  });
+  const [data, setData] = useState<{ data: EventItem[]; total: number } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate API call - Replace with actual REST API call later
+    // Example: fetch(`${API_URL}/dashboard/events?startDate_gte=${dayjs().format("YYYY-MM-DD")}&limit=5`)
+    const timer = setTimeout(() => {
+      setData(mockUpcomingEvents);
+      setIsLoading(false);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <Card

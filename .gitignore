@@ -41,3 +41,7 @@ examples/**/package-lock.json
 .cursorrules
 # claude
 .claude/
+
+examples/app-crm-minimal-api
+examples/app-crm-minimal/.vscode/settings.json
+examples/app-crm-minimal/API

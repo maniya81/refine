@@ -1,44 +1,37 @@
-import graphqlDataProvider, {
-  GraphQLClient,
-  liveProvider as graphqlLiveProvider,
-} from "@refinedev/nestjs-query";
+import dataProviderSimpleRest from "@refinedev/simple-rest";
+import axios from "axios";
 
-import { createClient } from "graphql-ws";
+export const API_BASE_URL = "http://localhost:8000";
+export const API_URL = `${API_BASE_URL}/v1`;
 
-import { fetchWrapper } from "./fetch-wrapper";
-
-export const API_BASE_URL = "https://api.crm.refine.dev";
-export const API_URL = `${API_BASE_URL}/graphql`;
-export const WS_URL = "wss://api.crm.refine.dev/graphql";
-
-export const client = new GraphQLClient(API_URL, {
-  fetch: (url: string, options: RequestInit) => {
-    try {
-      return fetchWrapper(url, options);
-    } catch (error) {
-      return Promise.reject(error as Error);
+/**
+ * Get CSRF token from cookie
+ */
+const getCsrfToken = (): string | null => {
+  const cookies = document.cookie.split(';');
+  for (const cookie of cookies) {
+    const [name, value] = cookie.trim().split('=');
+    if (name === 'csrf_access_token') {
+      return value;
     }
-  },
+  }
+  return null;
+};
+
+// Create axios instance with credentials included for cookie-based auth
+const axiosInstance = axios.create({
+  withCredentials: true, // Important: include cookies for JWT auth
 });
 
-export const wsClient =
-  typeof window !== "undefined"
-    ? createClient({
-        url: WS_URL,
-        connectionParams: () => {
-          const accessToken = localStorage.getItem("access_token");
+// Add request interceptor to include CSRF token in all requests
+axiosInstance.interceptors.request.use((config) => {
+  const csrfToken = getCsrfToken();
+  if (csrfToken) {
+    config.headers['X-CSRF-Token'] = csrfToken;
+  }
+  return config;
+});
 
-          return {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          };
-        },
-      })
-    : undefined;
+export const dataProvider = dataProviderSimpleRest(API_URL, axiosInstance);
 
-export const dataProvider = graphqlDataProvider(client);
-
-export const liveProvider = wsClient
-  ? graphqlLiveProvider(wsClient)
-  : undefined;
+export const liveProvider = undefined;

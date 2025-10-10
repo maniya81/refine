@@ -1,9 +1,9 @@
 import React from "react";
 
-import { useGetIdentity } from "@refinedev/core";
+import { useGetIdentity, useLogout } from "@refinedev/core";
 
-import { SettingOutlined } from "@ant-design/icons";
-import { Button, Popover } from "antd";
+import { LogoutOutlined, SettingOutlined } from "@ant-design/icons";
+import { Button, Modal, Popover } from "antd";
 
 import type { User } from "@/graphql/schema.types";
 
@@ -13,7 +13,22 @@ import { AccountSettings } from "../account-settings";
 
 export const CurrentUser = () => {
   const [opened, setOpened] = React.useState(false);
+  const [logoutModalOpen, setLogoutModalOpen] = React.useState(false);
   const { data: user } = useGetIdentity<User>();
+  const { mutate: logout } = useLogout();
+
+  const handleLogoutClick = () => {
+    setLogoutModalOpen(true);
+  };
+
+  const handleLogoutConfirm = () => {
+    setLogoutModalOpen(false);
+    logout();
+  };
+
+  const handleLogoutCancel = () => {
+    setLogoutModalOpen(false);
+  };
 
   const content = (
     <div
@@ -48,6 +63,15 @@ export const CurrentUser = () => {
         >
           Account settings
         </Button>
+        <Button
+          style={{ textAlign: "left" }}
+          icon={<LogoutOutlined />}
+          type="text"
+          block
+          onClick={handleLogoutClick}
+        >
+          Logout
+        </Button>
       </div>
     </div>
   );
@@ -75,6 +99,17 @@ export const CurrentUser = () => {
           userId={user.id}
         />
       )}
+      <Modal
+        title="Confirm Logout"
+        open={logoutModalOpen}
+        onOk={handleLogoutConfirm}
+        onCancel={handleLogoutCancel}
+        okText="Logout"
+        cancelText="Cancel"
+        okButtonProps={{ danger: true }}
+      >
+        <p>Are you sure you want to logout?</p>
+      </Modal>
     </>
   );
 };
