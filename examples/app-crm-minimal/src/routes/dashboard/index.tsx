@@ -30,21 +30,21 @@ export const DashboardPage = () => {
           <DashboardTotalCountCard
             resource="companies"
             isLoading={isLoading}
-            totalCount={data?.data.companies.totalCount}
+            totalCount={data?.data?.companies?.totalCount ?? 0}
           />
         </Col>
         <Col xs={24} sm={24} xl={8}>
           <DashboardTotalCountCard
             resource="contacts"
             isLoading={isLoading}
-            totalCount={data?.data.contacts.totalCount}
+            totalCount={data?.data?.contacts?.totalCount ?? 0}
           />
         </Col>
         <Col xs={24} sm={24} xl={8}>
           <DashboardTotalCountCard
             resource="deals"
             isLoading={isLoading}
-            totalCount={data?.data.deals.totalCount}
+            totalCount={data?.data?.deals?.totalCount ?? 0}
           />
         </Col>
       </Row>
