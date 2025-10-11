@@ -12,6 +12,7 @@ export const LeadListPage = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingLeadId, setEditingLeadId] = useState<string | undefined>();
+  const [editingLeadData, setEditingLeadData] = useState<any>(null);
 
   const { tableProps } = useTable({
     resource: "lead",
@@ -160,7 +161,9 @@ export const LeadListPage = () => {
                   size="small"
                   recordItemId={String(record.id)}
                   onClick={() => {
+                    console.log("Edit clicked - record data:", record);
                     setEditingLeadId(record.id);
+                    setEditingLeadData(record);
                     setIsEditModalOpen(true);
                   }}
                 />
@@ -186,8 +189,10 @@ export const LeadListPage = () => {
         onClose={() => {
           setIsEditModalOpen(false);
           setEditingLeadId(undefined);
+          setEditingLeadData(null);
         }}
         leadId={editingLeadId}
+        leadData={editingLeadData}
       />
     </>
   );

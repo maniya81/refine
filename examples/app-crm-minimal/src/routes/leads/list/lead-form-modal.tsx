@@ -4,11 +4,11 @@ import {
   Form,
   Input,
   Select,
-  DatePicker,
   InputNumber,
   Typography,
   Space,
   Button,
+  DatePicker,
 } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { useModalForm, useSelect } from "@refinedev/antd";
@@ -23,6 +23,7 @@ type LeadFormModalProps = {
   opened: boolean;
   onClose: () => void;
   leadId?: string;
+  leadData?: any;
 };
 
 const StageEnum = [
@@ -40,6 +41,7 @@ export const LeadFormModal: React.FC<LeadFormModalProps> = ({
   opened,
   onClose,
   leadId,
+  leadData,
 }) => {
   const [showNewProductInput, setShowNewProductInput] = useState(false);
   const [newProductName, setNewProductName] = useState("");
@@ -49,49 +51,51 @@ export const LeadFormModal: React.FC<LeadFormModalProps> = ({
   const [newSourceName, setNewSourceName] = useState("");
   const [isCreatingSource, setIsCreatingSource] = useState(false);
 
-  const { data: identity, isLoading: identityLoading } = useGetIdentity<{
-    id: string;
-  }>();
+  // Store business ID for edit mode
+  const [businessId, setBusinessId] = useState<string | undefined>();
 
+  const { data: identity } = useGetIdentity<{ id: string }>();
   const { mutate: createProduct } = useCreate();
   const { mutate: createSource } = useCreate();
 
   const { formProps, modalProps, form } = useModalForm({
     resource: "lead",
     action: action,
-    id: leadId,
+    id: action === "edit" ? leadId : undefined,
     redirect: false,
+    autoSave: {
+      enabled: false,
+    },
+    queryOptions: {
+      enabled: false, // Disable auto-fetching, we use grid data
+    },
     onMutationSuccess: () => {
       form.resetFields();
       onClose();
     },
   });
 
-  console.log("LeadFormModal - opened:", opened, "identity:", identity);
-
   const { selectProps: sourceSelectProps, query: sourceQuery } = useSelect({
     resource: "source",
     optionLabel: "name",
     optionValue: "id",
-    pagination: {
-      pageSize: 100,
-    },
-    queryOptions: {
-      enabled: opened,
-    },
+    pagination: { pageSize: 100 },
+    queryOptions: { enabled: opened },
+  });
+
+  const { selectProps: productSelectProps, query: productQuery } = useSelect({
+    resource: "product",
+    optionLabel: "name",
+    optionValue: "id",
+    pagination: { pageSize: 100 },
+    queryOptions: { enabled: opened },
   });
 
   const handleCreateSource = () => {
     if (!newSourceName.trim()) return;
-
     setIsCreatingSource(true);
     createSource(
-      {
-        resource: "source",
-        values: {
-          name: newSourceName.trim(),
-        },
-      },
+      { resource: "source", values: { name: newSourceName.trim() } },
       {
         onSuccess: (data) => {
           form.setFieldValue("source_id", data.data.id);
@@ -100,86 +104,145 @@ export const LeadFormModal: React.FC<LeadFormModalProps> = ({
           setIsCreatingSource(false);
           sourceQuery?.refetch();
         },
-        onError: (error) => {
-          console.error("Error creating source:", error);
-          setIsCreatingSource(false);
-        },
+        onError: () => setIsCreatingSource(false),
       },
     );
   };
 
-  const { selectProps: productSelectProps, query: productQuery } = useSelect({
-    resource: "product",
-    optionLabel: "name",
-    optionValue: "id",
-    pagination: {
-      pageSize: 100,
-    },
-    queryOptions: {
-      enabled: opened,
-    },
-  });
-
   const handleCreateProduct = () => {
     if (!newProductName.trim()) return;
-
     setIsCreatingProduct(true);
     createProduct(
-      {
-        resource: "product",
-        values: {
-          name: newProductName.trim(),
-        },
-      },
+      { resource: "product", values: { name: newProductName.trim() } },
       {
         onSuccess: (data) => {
-          // Set the newly created product as the selected value
           form.setFieldValue("product_id", data.data.id);
           setNewProductName("");
           setShowNewProductInput(false);
           setIsCreatingProduct(false);
-          // Refetch products to update the dropdown
           productQuery?.refetch();
         },
-        onError: (error) => {
-          console.error("Error creating product:", error);
-          setIsCreatingProduct(false);
-        },
+        onError: () => setIsCreatingProduct(false),
       },
     );
   };
 
-  // Transform data when editing - flatten business fields
+  // Populate form when editing with grid data
   useEffect(() => {
-    if (action === "edit" && form) {
-      const formData = form.getFieldsValue() as any;
-      if (formData?.business) {
+    if (action === "edit" && leadData && form && opened) {
+      // Use requestAnimationFrame to ensure form is mounted
+      requestAnimationFrame(() => {
+        console.log("Using grid data for edit:", leadData);
+        const {
+          business,
+          since,
+          product,
+          source,
+          assigned_user,
+          ...otherData
+        } = leadData;
+
+        // Store business ID for update
+        setBusinessId(business?.id);
+
         form.setFieldsValue({
-          ...formData,
-          business_name: formData.business.business,
-          contact_person: formData.business.name,
-          title: formData.business.title,
-          designation: formData.business.designation,
-          mobile: formData.business.mobile,
-          email: formData.business.email,
-          website: formData.business.website,
-          address: formData.business.address_line_1,
-          address_line2: formData.business.address_line_2,
-          city: formData.business.city,
-          country: formData.business.country,
-          GSTIN: formData.business.gstin,
-          code: formData.business.code,
+          ...otherData,
+          business_name: business?.business || "",
+          contact_person: business?.name || "",
+          title: business?.title || undefined,
+          designation: business?.designation || "",
+          mobile: business?.mobile || "",
+          email: business?.email || "",
+          website: business?.website || "",
+          address: business?.address_line_1 || "",
+          address_line2: business?.address_line_2 || "",
+          city: business?.city || "",
+          country: business?.country || "",
+          GSTIN: business?.gstin || "",
+          code: business?.code || "",
+          product_id: product?.id || undefined,
+          source_id: source?.id || undefined,
+          since: since ? dayjs(since) : undefined,
         });
-      }
-      if (formData?.since) {
-        form.setFieldValue("since", dayjs(formData.since));
-      }
+      });
     }
-  }, [action, form]);
+  }, [action, leadData, form, opened]);
 
   const handleModalClose = () => {
     form?.resetFields();
     onClose();
+  };
+
+  const handleFinish = (values: any) => {
+    const businessData: any = {
+      business: values.business_name || "",
+      name: values.contact_person || "",
+      title: values.title || null,
+      designation: values.designation || "",
+      mobile: values.mobile || "",
+      email: values.email || "",
+      website: values.website || "",
+      address_line_1: values.address || "",
+      address_line_2: values.address_line2 || "",
+      city: values.city || "",
+      country: values.country || "",
+      gstin: values.GSTIN || "",
+      code: values.code || "",
+    };
+
+    // Include business ID when editing
+    if (action === "edit" && businessId) {
+      businessData.id = businessId;
+    }
+
+    const transformedData = {
+      assigned_to: identity?.id,
+      tags: values.tags || [],
+      stage: values.stage,
+      source_id: values.source_id,
+      product_id: values.product_id,
+      potential: values.potential,
+      requirements: values.requirements,
+      notes: values.notes,
+      business: businessData,
+      since: values.since
+        ? values.since.toISOString()
+        : new Date().toISOString(),
+    };
+
+    console.log("Final data to submit:", transformedData);
+    formProps?.onFinish?.(transformedData);
+  };
+
+  const handleModalAfterOpen = (open: boolean) => {
+    if (open && action === "edit" && leadData && form) {
+      console.log(
+        "Modal opened - setting form values with grid data:",
+        leadData,
+      );
+      const { business, since, product, source, assigned_user, ...otherData } =
+        leadData;
+
+      form.setFieldsValue({
+        ...otherData,
+        business_name: business?.business || "",
+        contact_person: business?.name || "",
+        title: business?.title || undefined,
+        designation: business?.designation || "",
+        mobile: business?.mobile || "",
+        email: business?.email || "",
+        website: business?.website || "",
+        address: business?.address_line_1 || "",
+        address_line2: business?.address_line_2 || "",
+        city: business?.city || "",
+        country: business?.country || "",
+        GSTIN: business?.gstin || "",
+        code: business?.code || "",
+        product_id: product?.id || undefined,
+        source_id: source?.id || undefined,
+        since: since ? dayjs(since) : undefined,
+      });
+    }
   };
 
   return (
@@ -187,6 +250,7 @@ export const LeadFormModal: React.FC<LeadFormModalProps> = ({
       {...modalProps}
       open={opened}
       onCancel={handleModalClose}
+      afterOpenChange={handleModalAfterOpen}
       title={action === "create" ? "Create Lead" : "Edit Lead"}
       width={900}
       style={{ top: 20 }}
@@ -195,59 +259,9 @@ export const LeadFormModal: React.FC<LeadFormModalProps> = ({
     >
       <Form
         {...formProps}
+        form={form}
         layout="vertical"
-        onFinish={(values: any) => {
-          console.log("Form onFinish called with values:", values);
-          console.log("Identity ID:", identity?.id);
-
-          // Transform flat form values into nested business structure
-          const leadData = {
-            ...values,
-            assigned_to: identity?.id, // Auto-assign to logged-in user
-            tags: values.tags || [], // Ensure tags is an array (API expects Set)
-            business: {
-              business: values.business_name || "",
-              name: values.contact_person || "",
-              title: values.title || null,
-              designation: values.designation || "",
-              mobile: values.mobile || "",
-              email: values.email || "",
-              website: values.website || "",
-              address_line_1: values.address || "",
-              address_line_2: values.address_line2 || "",
-              city: values.city || "",
-              country: values.country || "",
-              gstin: values.GSTIN || "",
-              code: values.code || "",
-            },
-            since: values.since
-              ? values.since.toISOString()
-              : new Date().toISOString(),
-          };
-
-          // Remove the flat business fields from root level
-          const {
-            business_name,
-            contact_person,
-            title,
-            designation,
-            mobile,
-            email,
-            website,
-            address,
-            address_line2,
-            city,
-            country,
-            GSTIN,
-            code,
-            ...restValues
-          } = leadData;
-
-          const finalData = { ...restValues, business: leadData.business };
-          console.log("Final data to submit:", finalData);
-
-          formProps?.onFinish?.(finalData);
-        }}
+        onFinish={handleFinish}
       >
         <Title level={5} style={{ marginTop: 0, marginBottom: 16 }}>
           Business Information
@@ -357,7 +371,7 @@ export const LeadFormModal: React.FC<LeadFormModalProps> = ({
           <Select
             {...sourceSelectProps}
             placeholder="Select source"
-            dropdownRender={(menu) => (
+            popupRender={(menu) => (
               <>
                 {menu}
                 <div style={{ padding: "8px", borderTop: "1px solid #f0f0f0" }}>
@@ -411,7 +425,7 @@ export const LeadFormModal: React.FC<LeadFormModalProps> = ({
           <Select
             {...productSelectProps}
             placeholder="Select product"
-            dropdownRender={(menu) => (
+            popupRender={(menu) => (
               <>
                 {menu}
                 <div style={{ padding: "8px", borderTop: "1px solid #f0f0f0" }}>

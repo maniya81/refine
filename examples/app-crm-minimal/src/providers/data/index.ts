@@ -94,6 +94,16 @@ export const dataProvider: DataProvider = {
       total: data.total || data.items?.length || 0,
     };
   },
+
+  update: async ({ resource, id, variables }) => {
+    const url = `${API_URL}/${resource}/${id}`;
+
+    const { data } = await axiosInstance.put(url, variables);
+
+    return {
+      data,
+    };
+  },
 };
 
 export const liveProvider = undefined;
