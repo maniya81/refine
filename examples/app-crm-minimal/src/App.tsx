@@ -19,7 +19,9 @@ import {
   CompanyCreatePage,
   CompanyEditPage,
   CompanyListPage,
+  ContactListPage,
   DashboardPage,
+  LeadListPage,
   LoginPage,
   TasksCreatePage,
   TasksEditPage,
@@ -79,6 +81,14 @@ const App = () => {
                     <Route index element={<CompanyListPage />} />
                     <Route path="new" element={<CompanyCreatePage />} />
                     <Route path="edit/:id" element={<CompanyEditPage />} />
+                  </Route>
+
+                  <Route path="/contacts">
+                    <Route index element={<ContactListPage />} />
+                  </Route>
+
+                  <Route path="/leads">
+                    <Route index element={<LeadListPage />} />
                   </Route>
 
                   <Route path="*" element={<ErrorComponent />} />

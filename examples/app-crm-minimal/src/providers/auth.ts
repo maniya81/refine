@@ -47,6 +47,25 @@ export const authProvider: AuthProvider = {
         };
       }
 
+      // Fetch the user's organizations to get org_id
+      const csrfToken = getCsrfToken();
+      const orgResponse = await fetch(`${API_BASE_URL}/v1/org/current`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          ...(csrfToken && { "X-CSRF-Token": csrfToken }),
+        },
+        credentials: "include",
+      });
+
+      if (orgResponse.ok) {
+        const orgs = await orgResponse.json();
+        if (orgs && orgs.length > 0) {
+          // Store the first org_id in localStorage
+          localStorage.setItem("org_id", orgs[0].id);
+        }
+      }
+
       // Cookies are automatically stored by the browser
       return {
         success: true,
@@ -78,6 +97,9 @@ export const authProvider: AuthProvider = {
       // Continue with logout even if API call fails
       console.error("Logout error:", error);
     }
+
+    // Clear stored org_id
+    localStorage.removeItem("org_id");
 
     return {
       success: true,
@@ -153,7 +175,7 @@ export const authProvider: AuthProvider = {
       }
 
       const data = await response.json();
-      
+
       // Map FastAPI user response to expected format
       return {
         id: data.id,

@@ -4,6 +4,8 @@ import {
   DashboardOutlined,
   ProjectOutlined,
   ShopOutlined,
+  TeamOutlined,
+  RocketOutlined,
 } from "@ant-design/icons";
 
 export const resources: IResourceItem[] = [
@@ -24,6 +26,26 @@ export const resources: IResourceItem[] = [
     meta: {
       label: "Companies",
       icon: <ShopOutlined />,
+    },
+  },
+  {
+    name: "contacts",
+    list: "/contacts",
+    create: "/contacts/new",
+    edit: "/contacts/edit/:id",
+    meta: {
+      label: "Contacts",
+      icon: <TeamOutlined />,
+    },
+  },
+  {
+    name: "lead",
+    list: "/leads",
+    create: "/leads/new",
+    edit: "/leads/edit/:id",
+    meta: {
+      label: "Leads",
+      icon: <RocketOutlined />,
     },
   },
   {
