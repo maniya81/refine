@@ -46,6 +46,9 @@ jobs:
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
 
+      - name: Add .nojekyll file
+        run: touch examples/app-crm-minimal/dist/.nojekyll
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
