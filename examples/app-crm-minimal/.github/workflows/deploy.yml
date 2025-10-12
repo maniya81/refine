@@ -26,20 +26,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
-          cache-dependency-path: examples/app-crm-minimal/package-lock.json
+          cache: "pnpm"
 
       - name: Install dependencies
-        working-directory: examples/app-crm-minimal
-        run: npm ci
+        run: pnpm install --no-frozen-lockfile
 
       - name: Build application
         working-directory: examples/app-crm-minimal
-        run: npm run build:gh-pages
+        run: pnpm run build:gh-pages
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
 
