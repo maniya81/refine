@@ -1,30 +1,10 @@
 import dataProviderSimpleRest from "@refinedev/simple-rest";
 import type { DataProvider } from "@refinedev/core";
-import axios, { type AxiosResponse, type AxiosError } from "axios";
+import axios from "axios";
 import { stringify } from "query-string";
-import { from, type Observable } from "rxjs";
-import { map, catchError } from "rxjs/operators";
 import { getOrgId, clearOrgData } from "@/utilities/organization";
 import { AuthErrorMessages } from "../auth";
 import { clearRoleCache } from "../access-control";
-
-/**
- * Generic API response structure from backend
- */
-interface ApiListResponse<T> {
-  items: T[];
-  total: number;
-  page?: number;
-  page_size?: number;
-}
-
-/**
- * Alternative API response structure (for backwards compatibility)
- */
-interface ApiDataResponse<T> {
-  data: T[];
-  total: number;
-}
 
 // Use environment variable for API URL, fallback to localhost for development
 export const API_BASE_URL =
@@ -78,10 +58,10 @@ axiosInstance.interceptors.request.use(
 
 // Add response interceptor to handle auth errors
 axiosInstance.interceptors.response.use(
-  (response: AxiosResponse) => {
+  (response) => {
     return response;
   },
-  (error: AxiosError<{ detail?: string; message?: string }>) => {
+  (error) => {
     const status = error.response?.status;
 
     if (status === 401) {
@@ -97,7 +77,7 @@ axiosInstance.interceptors.response.use(
       window.location.href = "/login";
     }
 
-    return Promise.reject(error);
+    return error;
   },
 );
 
@@ -108,197 +88,131 @@ const simpleRestProvider = dataProviderSimpleRest(API_URL, axiosInstance);
 export const dataProvider: DataProvider = {
   ...simpleRestProvider,
   getList: async ({ resource, pagination, filters, sorters, meta }) => {
-    // Remove trailing slash to avoid 307 redirects from FastAPI
-    const url = `${API_URL}/${resource}`;
+    try {
+      // Remove trailing slash to avoid 307 redirects from FastAPI
+      const url = `${API_URL}/${resource}`;
 
-    // Handle pagination - Refine uses currentPage/pageSize (not current/pageSize)
-    const currentPage =
-      (pagination as any)?.currentPage ?? (pagination as any)?.current ?? 1;
-    const pageSize = (pagination as any)?.pageSize ?? 10;
-    const mode = (pagination as any)?.mode ?? "server";
+      // Handle pagination - Refine uses currentPage/pageSize (not current/pageSize)
+      const currentPage =
+        (pagination as any)?.currentPage ?? (pagination as any)?.current ?? 1;
+      const pageSize = (pagination as any)?.pageSize ?? 10;
+      const mode = (pagination as any)?.mode ?? "server";
 
-    const query: {
-      page?: number;
-      page_size?: number;
-      q?: string;
-      assigned_user_ids?: string[];
-      lead_id?: string;
-      business_id?: string;
-    } = {};
+      const query: {
+        page?: number;
+        page_size?: number;
+        q?: string;
+        assigned_user_ids?: string[];
+        lead_id?: string;
+        business_id?: string;
+      } = {};
 
-    if (mode === "server") {
-      query.page = currentPage;
-      query.page_size = pageSize;
-    }
+      if (mode === "server") {
+        query.page = currentPage;
+        query.page_size = pageSize;
+      }
 
-    // Handle filters
-    if (filters) {
-      filters.forEach((filter) => {
-        if ("field" in filter && filter.value) {
-          // Handle search filter (q parameter)
-          if (filter.field === "q") {
-            query.q = filter.value;
-          }
-          // Handle assigned_user filter - send as array for multiple query params
-          else if (
-            filter.field === "assigned_user" ||
-            filter.field === "assigned_user.id"
-          ) {
-            // Always convert to array for consistent query param handling
-            if (Array.isArray(filter.value)) {
-              query.assigned_user_ids = filter.value;
-            } else {
-              query.assigned_user_ids = [filter.value];
+      // Handle filters
+      if (filters) {
+        filters.forEach((filter) => {
+          if ("field" in filter && filter.value) {
+            // Handle search filter (q parameter)
+            if (filter.field === "q") {
+              query.q = filter.value;
+            }
+            // Handle assigned_user filter - send as array for multiple query params
+            else if (
+              filter.field === "assigned_user" ||
+              filter.field === "assigned_user.id"
+            ) {
+              // Always convert to array for consistent query param handling
+              if (Array.isArray(filter.value)) {
+                query.assigned_user_ids = filter.value;
+              } else {
+                query.assigned_user_ids = [filter.value];
+              }
+            }
+            // Handle lead_id filter for interactions and appointments
+            else if (filter.field === "lead_id") {
+              query.lead_id = filter.value;
+            }
+            // Handle business_id filter for contacts
+            else if (filter.field === "business_id") {
+              query.business_id = filter.value;
             }
           }
-          // Handle lead_id filter for interactions and appointments
-          else if (filter.field === "lead_id") {
-            query.lead_id = filter.value;
-          }
-          // Handle business_id filter for contacts
-          else if (filter.field === "business_id") {
-            query.business_id = filter.value;
-          }
-        }
-      });
-    }
-
-    return new Promise((resolve, reject) => {
-      from(
-        axiosInstance.get<ApiListResponse<unknown> | ApiDataResponse<unknown>>(
-          `${url}?${stringify(query, {
-            skipNull: true,
-            skipEmptyString: true,
-            arrayFormat: "none",
-          })}`,
-        ),
-      )
-        .pipe(
-          map(
-            (
-              response: AxiosResponse<
-                ApiListResponse<unknown> | ApiDataResponse<unknown>
-              >,
-            ) => {
-              const responseData = response.data;
-              const data =
-                (responseData as ApiListResponse<unknown>).items ||
-                (responseData as ApiDataResponse<unknown>).data ||
-                responseData;
-              return {
-                data: data as any,
-                total:
-                  responseData.total ||
-                  ((responseData as ApiListResponse<unknown>).items?.length ??
-                    0),
-              };
-            },
-          ),
-          catchError((error: AxiosError<{ detail?: string }>) => {
-            console.error("[DATA PROVIDER] getList error:", error);
-            throw error;
-          }),
-        )
-        .subscribe({
-          next: (result) => resolve(result),
-          error: (error) => reject(error),
         });
-    });
+      }
+
+      const { data } = await axiosInstance.get(
+        `${url}?${stringify(query, {
+          skipNull: true,
+          skipEmptyString: true,
+          arrayFormat: "none",
+        })}`,
+      );
+
+      return {
+        data: data.items || data.data || data,
+        total: data.total || data.items?.length || 0,
+      };
+    } catch (error: any) {
+      // Ensure error is properly formatted for Refine's error handling
+      // Log the error so we can see it's being caught
+      console.error("[DATA PROVIDER] getList error:", error);
+
+      // Re-throw the error so Refine's useTable/useList can catch it
+      // and pass it to authProvider.onError via internal useOnError hook
+      throw error;
+    }
   },
 
   getOne: async ({ resource, id }) => {
-    return new Promise((resolve, reject) => {
+    try {
       // For resources without a dedicated getOne endpoint, fetch from list and find the item
       // This is a workaround for the backend not having GET /v1/lead/{id} endpoint
       if (resource === "lead") {
+        // Remove trailing slash to avoid 307 redirects from FastAPI
         const url = `${API_URL}/${resource}`;
 
-        from(
-          axiosInstance.get<
-            ApiListResponse<unknown> | ApiDataResponse<unknown>
-          >(
-            `${url}?${stringify(
-              { page: 1, page_size: 1000 },
-              { skipNull: true },
-            )}`,
-          ),
-        )
-          .pipe(
-            map(
-              (
-                response: AxiosResponse<
-                  ApiListResponse<unknown> | ApiDataResponse<unknown>
-                >,
-              ) => {
-                const responseData = response.data;
-                const items =
-                  (responseData as ApiListResponse<unknown>).items ||
-                  (responseData as ApiDataResponse<unknown>).data ||
-                  responseData;
-                const item = Array.isArray(items)
-                  ? items.find(
-                      (item: unknown) =>
-                        (item as { id: string | number }).id === id,
-                    )
-                  : null;
+        // Fetch with a large page size to increase chances of finding the lead
+        // In production, this should be replaced with a proper backend endpoint
+        const { data } = await axiosInstance.get(
+          `${url}?${stringify(
+            { page: 1, page_size: 1000 },
+            { skipNull: true },
+          )}`,
+        );
 
-                if (!item) {
-                  throw new Error(`${resource} with id ${id} not found`);
-                }
+        const items = data.items || data.data || data;
+        const item = items.find((item: any) => item.id === id);
 
-                return { data: item as any };
-              },
-            ),
-            catchError((error: AxiosError<{ detail?: string }>) => {
-              console.error("[DATA PROVIDER] getOne error:", error);
-              throw error;
-            }),
-          )
-          .subscribe({
-            next: (result) => resolve(result),
-            error: (error) => reject(error),
-          });
-      } else {
-        // For other resources, use the default behavior
-        const url = `${API_URL}/${resource}/${id}`;
+        if (!item) {
+          throw new Error(`${resource} with id ${id} not found`);
+        }
 
-        from(axiosInstance.get<unknown>(url))
-          .pipe(
-            map((response: AxiosResponse<unknown>) => ({
-              data: response.data as any,
-            })),
-            catchError((error: AxiosError<{ detail?: string }>) => {
-              console.error("[DATA PROVIDER] getOne error:", error);
-              throw error;
-            }),
-          )
-          .subscribe({
-            next: (result) => resolve(result),
-            error: (error) => reject(error),
-          });
+        return { data: item };
       }
-    });
+
+      // For other resources, use the default behavior
+      const url = `${API_URL}/${resource}/${id}`;
+      const { data } = await axiosInstance.get(url);
+      return { data };
+    } catch (error: any) {
+      console.error("[DATA PROVIDER] getOne error:", error);
+      throw error;
+    }
   },
 
   update: async ({ resource, id, variables }) => {
-    const url = `${API_URL}/${resource}/${id}`;
-
-    return new Promise((resolve, reject) => {
-      from(axiosInstance.put<unknown>(url, variables))
-        .pipe(
-          map((response: AxiosResponse<unknown>) => ({
-            data: response.data as any,
-          })),
-          catchError((error: AxiosError<{ detail?: string }>) => {
-            console.error("[DATA PROVIDER] update error:", error);
-            throw error;
-          }),
-        )
-        .subscribe({
-          next: (result) => resolve(result),
-          error: (error) => reject(error),
-        });
-    });
+    try {
+      const url = `${API_URL}/${resource}/${id}`;
+      const { data } = await axiosInstance.put(url, variables);
+      return { data };
+    } catch (error: any) {
+      console.error("[DATA PROVIDER] update error:", error);
+      throw error;
+    }
   },
 };
 

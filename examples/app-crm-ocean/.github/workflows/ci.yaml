@@ -1,0 +1,27 @@
+name: Biome CI
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+
+jobs:
+    biome:
+        name: Run Biome Checks
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v5
+
+            - name: Set up Node
+              uses: actions/setup-node@v6
+              with:
+                  node-version: 22
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Run Biome lint
+              run: npx @biomejs/biome ci

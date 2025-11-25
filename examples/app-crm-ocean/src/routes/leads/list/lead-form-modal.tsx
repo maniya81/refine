@@ -113,7 +113,7 @@ export const LeadFormModal: React.FC<LeadFormModalProps> = ({
         title: "Mr.",
         since: dayjs(),
         country: "India",
-        assigned_user_id: identity.id,
+        assigned_user_id: leadData?.assigned_to || identity.id,
       });
     }
   }, [action, opened, form, identity, leadData]);

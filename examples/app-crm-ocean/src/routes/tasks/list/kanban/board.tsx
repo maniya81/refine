@@ -39,11 +39,9 @@ export const KanbanBoard = ({
   };
 
   return (
-    <KanbanBoardContainer>
-      <DndContext onDragEnd={handleDragEnd} sensors={sensors}>
-        {children}
-      </DndContext>
-    </KanbanBoardContainer>
+    <DndContext onDragEnd={handleDragEnd} sensors={sensors}>
+      {children}
+    </DndContext>
   );
 };
 

@@ -1,10 +1,21 @@
 import React, { useState } from "react";
 
-import { type HttpError, useGo, useList, useUpdate } from "@refinedev/core";
+import {
+  type HttpError,
+  useGo,
+  useList,
+  useUpdate,
+  getDefaultFilter,
+} from "@refinedev/core";
+import { FilterDropdown, useSelect } from "@refinedev/antd";
 
-import { AppstoreOutlined, UserOutlined } from "@ant-design/icons";
+import {
+  AppstoreOutlined,
+  UserOutlined,
+  SearchOutlined,
+} from "@ant-design/icons";
 import type { DragEndEvent } from "@dnd-kit/core";
-import { Segmented } from "antd";
+import { Input, Select, Space, Button, theme } from "antd";
 
 import { Text } from "@/components";
 import {
@@ -51,6 +62,7 @@ type ColumnData = LeadStageColumn | LeadUserGroup;
 
 export const TasksListPage = ({ children }: React.PropsWithChildren) => {
   const go = useGo();
+  const { token } = theme.useToken();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -58,15 +70,25 @@ export const TasksListPage = ({ children }: React.PropsWithChildren) => {
   const [viewMode, setViewMode] = useState<ViewMode>("stage");
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createStage, setCreateStage] = useState<string>(LeadStage.RAW);
+  const [createAssignedUserId, setCreateAssignedUserId] = useState<
+    string | null
+  >(null);
+  const [search, setSearch] = useState("");
 
-  const {
-    result: { data: leadsData },
-    query: { isLoading: isLoadingLeads },
-  } = useList<Lead>({
+  const leadsQuery = useList<Lead>({
     resource: "lead",
     pagination: {
       mode: "off",
     },
+    filters: search
+      ? [
+          {
+            field: "q",
+            operator: "contains",
+            value: search,
+          },
+        ]
+      : [],
     sorters: [
       {
         field: "since",
@@ -74,6 +96,19 @@ export const TasksListPage = ({ children }: React.PropsWithChildren) => {
       },
     ],
   });
+
+  // Fetch all users
+  const usersQuery = useList({
+    resource: "user",
+    pagination: {
+      mode: "off",
+    },
+  });
+
+  const leadsData = leadsQuery.result?.data;
+  const isLoadingLeads = leadsQuery.query.isLoading;
+  const allUsers = usersQuery.result?.data || [];
+  const isLoadingUsers = usersQuery.query.isLoading;
 
   // Group leads by stage
   const leadStages = React.useMemo(() => {
@@ -99,15 +134,15 @@ export const TasksListPage = ({ children }: React.PropsWithChildren) => {
 
   // Group leads by assigned user
   const leadsByUser = React.useMemo(() => {
-    if (!leadsData) return [];
+    if (!leadsData || !allUsers) return [];
 
-    // Get unique users
+    // Initialize map with all users from the system
     const usersMap = new Map<
       string,
       { id: string; name: string; leads: Lead[]; totalPotential: number }
     >();
 
-    // Add "Unassigned" group
+    // Add "Unassigned" group first
     usersMap.set("unassigned", {
       id: "unassigned",
       name: "Unassigned",
@@ -115,26 +150,29 @@ export const TasksListPage = ({ children }: React.PropsWithChildren) => {
       totalPotential: 0,
     });
 
+    // Add all users from the system
+    allUsers.forEach((user: any) => {
+      usersMap.set(user.id, {
+        id: user.id,
+        name: user.name,
+        leads: [],
+        totalPotential: 0,
+      });
+    });
+
+    // Distribute leads to their assigned users
     leadsData.forEach((lead: Lead) => {
       const userId = lead.assigned_user?.id || "unassigned";
-      const userName = lead.assigned_user?.name || "Unassigned";
 
-      if (!usersMap.has(userId)) {
-        usersMap.set(userId, {
-          id: userId,
-          name: userName,
-          leads: [],
-          totalPotential: 0,
-        });
+      if (usersMap.has(userId)) {
+        const userGroup = usersMap.get(userId)!;
+        userGroup.leads.push(lead);
+        userGroup.totalPotential += lead.potential || 0;
       }
-
-      const userGroup = usersMap.get(userId)!;
-      userGroup.leads.push(lead);
-      userGroup.totalPotential += lead.potential || 0;
     });
 
     return Array.from(usersMap.values());
-  }, [leadsData]);
+  }, [leadsData, allUsers]);
 
   const columns = viewMode === "stage" ? leadStages : leadsByUser;
 
@@ -205,14 +243,16 @@ export const TasksListPage = ({ children }: React.PropsWithChildren) => {
     });
   };
 
-  const handleAddCard = (args: { stageId: string }) => {
+  const handleAddCard = (args: { stageId: string; userId?: string }) => {
     setCreateStage(args.stageId);
+    setCreateAssignedUserId(args.userId || null);
     setCreateModalOpen(true);
   };
 
   const handleCloseCreateModal = () => {
     setCreateModalOpen(false);
     setCreateStage(LeadStage.RAW);
+    setCreateAssignedUserId(null);
   };
 
   const handleCardClick = (lead: Lead, tab?: string) => {
@@ -227,7 +267,7 @@ export const TasksListPage = ({ children }: React.PropsWithChildren) => {
     setInitialTab("overview");
   };
 
-  if (isLoadingLeads) return <PageSkeleton />;
+  if (isLoadingLeads || isLoadingUsers) return <PageSkeleton />;
 
   return (
     <>
@@ -238,23 +278,39 @@ export const TasksListPage = ({ children }: React.PropsWithChildren) => {
           borderBottom: "1px solid #f0f0f0",
         }}
       >
-        <Segmented
-          value={viewMode}
-          onChange={(value) => setViewMode(value as ViewMode)}
-          options={[
-            {
-              label: "Group by Stage",
-              value: "stage",
-              icon: <AppstoreOutlined />,
-            },
-            {
-              label: "Group by Assigned To",
-              value: "user",
-              icon: <UserOutlined />,
-            },
-          ]}
-          size="large"
-        />
+        <Space size="middle" wrap>
+          <Space.Compact>
+            <Button
+              type={viewMode === "stage" ? "primary" : "default"}
+              icon={<AppstoreOutlined />}
+              onClick={() => setViewMode("stage")}
+            >
+              Group by Stage
+            </Button>
+            <Button
+              type={viewMode === "user" ? "primary" : "default"}
+              icon={<UserOutlined />}
+              onClick={() => setViewMode("user")}
+            >
+              Group by Assigned To
+            </Button>
+          </Space.Compact>
+
+          <Input.Search
+            placeholder="Search leads..."
+            prefix={
+              <SearchOutlined style={{ color: token.colorTextPlaceholder }} />
+            }
+            style={{ width: 250 }}
+            allowClear
+            onSearch={(value) => setSearch(value)}
+            onChange={(e) => {
+              if (!e.target.value) {
+                setSearch("");
+              }
+            }}
+          />
+        </Space>
       </div>
       <KanbanBoardContainer>
         <KanbanBoard onDragEnd={handleOnDragEnd}>
@@ -278,6 +334,10 @@ export const TasksListPage = ({ children }: React.PropsWithChildren) => {
                 onAddClick={() =>
                   handleAddCard({
                     stageId: viewMode === "stage" ? column.id : LeadStage.RAW,
+                    userId:
+                      viewMode === "user" && column.id !== "unassigned"
+                        ? column.id
+                        : undefined,
                   })
                 }
               >
@@ -324,6 +384,10 @@ export const TasksListPage = ({ children }: React.PropsWithChildren) => {
                       handleAddCard({
                         stageId:
                           viewMode === "stage" ? column.id : LeadStage.RAW,
+                        userId:
+                          viewMode === "user" && column.id !== "unassigned"
+                            ? column.id
+                            : undefined,
                       })
                     }
                   />
@@ -349,7 +413,10 @@ export const TasksListPage = ({ children }: React.PropsWithChildren) => {
         action="create"
         opened={createModalOpen}
         onClose={handleCloseCreateModal}
-        leadData={{ stage: createStage }}
+        leadData={{
+          stage: createStage,
+          assigned_to: createAssignedUserId,
+        }}
       />
       <LeadFormModal
         action="edit"

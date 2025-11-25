@@ -67,6 +67,11 @@ export const KanbanColumn = ({
             </Text>
             {!!count && <Badge count={count} color="cyan" />}
           </Space>
+          <Button
+            shape="circle"
+            icon={<PlusOutlined />}
+            onClick={onAddClickHandler}
+          />
         </Space>
         {description}
       </div>
@@ -115,6 +120,7 @@ export const KanbanColumnSkeleton = ({ children }: React.PropsWithChildren) => {
           }}
         >
           <Skeleton.Button size="small" style={{ width: "125px" }} />
+          <Button disabled shape="circle" icon={<PlusOutlined />} />
         </Space>
       </div>
       <div
