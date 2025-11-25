@@ -1,0 +1,9 @@
+.vscode
+node_modules
+dist
+API
+.vite
+
+# Environment variables
+.env.local
+.env.*.local
